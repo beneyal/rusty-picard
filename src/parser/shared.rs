@@ -29,7 +29,7 @@ pub(crate) fn choice<'i, E: ParserError<Stream<'i>>>(
 pub(crate) fn table_name<'i, E: ParserError<Stream<'i>>>(
     input: &mut Stream<'i>,
 ) -> PResult<String, E> {
-    let schema = &input.state.schema;
+    let schema = &input.state.schema.as_ref().unwrap();
     let mut table_names = schema.table_names.clone();
 
     table_names.sort_unstable_by(|a, b| cmp_length_desc(a, b));
@@ -40,7 +40,7 @@ pub(crate) fn table_name<'i, E: ParserError<Stream<'i>>>(
 pub(crate) fn column_name<'i, E: ParserError<Stream<'i>>>(
     input: &mut Stream<'i>,
 ) -> PResult<String, E> {
-    let schema = &input.state.schema;
+    let schema = &input.state.schema.as_ref().unwrap();
     let mut column_names = schema.column_names.clone();
 
     column_names.sort_unstable_by(|a, b| cmp_length_desc(a, b));
@@ -76,7 +76,7 @@ pub(crate) fn column_in_table<'i, 't, E: ParserError<Stream<'i>>>(
         let alias = opt((" AS ", alphanumeric1))
             .map(|alias_opt| alias_opt.map(|(_, alias)| alias))
             .parse_next(input)?;
-        let schema = &input.state.schema;
+        let schema = &input.state.schema.as_ref().unwrap();
         let t = schema.table_names.iter().position(|t| t == table).unwrap();
         let is_column_in_table = schema.column_names.iter().enumerate().any(|(i, cn)| {
             cn.to_lowercase() == column.to_lowercase() && schema.column_to_table[i] == t
@@ -108,7 +108,6 @@ pub(crate) fn column_in_index<'i, E: ParserError<Stream<'i>>>(
         let is_column_in_table = state.idx_to_table.get(&idx).map_or_else(
             || false,
             |table| {
-                println!("Table: {table:?}");
                 table.columns().iter().any(|c| match c {
                     Column::Dummy => false,
                     Column::Plain { name, .. } => column == *name,
@@ -381,7 +380,7 @@ pub(crate) fn spaced_comparison_op<'i, E: ParserError<Stream<'i>>>(
 
 #[cfg(test)]
 pub(crate) fn get_input(input: &str) -> Stream<'_> {
-    let schema = concert_singer();
+    let schema = Some(concert_singer());
     let state = QplState::default();
     let env = QplEnvironment { state, schema };
     Stream {

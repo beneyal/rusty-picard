@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum ColumnType {
     Number,
     Boolean,
@@ -9,7 +11,7 @@ pub(crate) enum ColumnType {
     Others,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct SqlSchema {
     pub(crate) db_id: String,
     pub(crate) table_names: Vec<String>,
@@ -21,8 +23,9 @@ pub(crate) struct SqlSchema {
     pub(crate) primary_keys: Vec<usize>,
 }
 
-#[allow(clippy::too_many_arguments)]
 impl SqlSchema {
+    #[cfg(test)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         db_id: String,
         table_names: Vec<String>,
@@ -90,7 +93,7 @@ impl Column {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum Table {
     Named { name: String, columns: Vec<Column> },
     Indexed { idx: usize, columns: Vec<Column> },
@@ -256,15 +259,15 @@ pub(crate) struct Line {
 
 pub(crate) type Qpl = Vec<Line>;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct QplState {
     pub(crate) current_idx: usize,
     pub(crate) seen: HashSet<usize>,
     pub(crate) idx_to_table: HashMap<usize, Table>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct QplEnvironment {
     pub(crate) state: QplState,
-    pub(crate) schema: SqlSchema,
+    pub(crate) schema: Option<SqlSchema>,
 }

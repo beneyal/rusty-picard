@@ -35,7 +35,7 @@ pub(crate) fn scan<'i, E: ParserError<Stream<'i>>>(
         if has_duplicates(&outs_with_aliases) {
             return fail.parse_next(input);
         }
-        let schema = &input.state.schema;
+        let schema = &input.state.schema.as_ref().unwrap();
         let output_table = get_output_table(schema, &table, &outs_with_aliases);
         let state = &mut input.state.state;
         state.idx_to_table.insert(state.current_idx, output_table);
@@ -80,7 +80,7 @@ fn comparison<'i, 't, E: ParserError<Stream<'i>>>(
         let (column, _) = column_in_table(table).parse_next(input)?;
         let op = spaced_comparison_op.parse_next(input)?;
         if with_type_checking {
-            let schema = &input.state.schema;
+            let schema = &input.state.schema.as_ref().unwrap();
             let typ = column_type(schema, table, &column);
             if typ.is_none() {
                 return fail.parse_next(input);
@@ -144,7 +144,7 @@ fn column_in_table_of_type<'i, 't, E: ParserError<Stream<'i>>>(
 ) -> impl Parser<Stream<'i>, Comparable, E> + 't {
     move |input: &mut Stream<'i>| {
         let column = column_name.parse_next(input)?;
-        let schema = &input.state.schema;
+        let schema = &input.state.schema.as_ref().unwrap();
         let ti = schema.table_names.iter().position(|t| t == table).unwrap();
         let is_column_in_table_of_type = schema.column_names.iter().enumerate().any(|(i, cn)| {
             *cn == column && schema.column_to_table[i] == ti && schema.column_types[i] == typ

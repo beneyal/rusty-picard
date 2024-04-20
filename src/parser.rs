@@ -1,4 +1,5 @@
 mod aggregate;
+pub(crate) mod api;
 mod except;
 mod filter;
 mod intersect;
