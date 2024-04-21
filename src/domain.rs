@@ -94,6 +94,7 @@ impl Column {
 }
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub(crate) enum Table {
     Named { name: String, columns: Vec<Column> },
     Indexed { idx: usize, columns: Vec<Column> },

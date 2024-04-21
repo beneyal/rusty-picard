@@ -1,24 +1,23 @@
-use api::{BatchFeedResult, FeedResult, ServerState, ValidationRequest, ValidationResult};
+use api::{
+    BatchFeedResult, BatchParseRequest, FeedResult, ServerState, ValidationRequest,
+    ValidationResult,
+};
 use axum::{
-    http::request,
     response::IntoResponse,
     routing::{get, post},
     Extension, Json, Router,
 };
-use axum_macros::debug_handler;
 use domain::{QplEnvironment, QplState, SqlSchema};
 use parser::{api::prefixed_qpl, shared::Stream};
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use rayon::prelude::*;
+use std::{
+    str::FromStr,
+    sync::{Arc, Mutex},
+};
 use tokenizers::Tokenizer;
 use tokio::sync::RwLock;
 use tracing::debug;
-use winnow::{
-    ascii::{multispace0, Caseless},
-    combinator::{alt, fail, opt},
-    error::{ContextError, ErrMode, ErrorKind, InputError, ParserError, TreeError},
-    stream::StreamIsPartial,
-    PResult, Parser, Partial,
-};
+use winnow::{error::ErrMode, stream::StreamIsPartial, Parser, Partial};
 
 mod api;
 pub(crate) mod domain;
@@ -57,10 +56,11 @@ async fn register_schema(Extension(state): Extension<SharedState>, Json(schema):
 }
 
 async fn register_tokenizer(Extension(state): Extension<SharedState>, tokenizer_repr: String) {
-    let mut state = state.write().await;
+    let state = state.write().await;
     let tokenizer = Tokenizer::from_str(&tokenizer_repr).unwrap();
     debug!("Setting tokenizer");
-    state.tokenizer = Some(tokenizer);
+    let mut mutex = state.tokenizer.lock().unwrap();
+    *mutex = Some(tokenizer);
 }
 
 async fn validate_qpl(
@@ -77,15 +77,10 @@ async fn validate_qpl(
             schema: None,
         },
     };
-    let result = prefixed_qpl::<ContextError>(schemas, with_type_checking)
-        .complete_err()
-        .parse_next(&mut input);
-    debug!(?result);
+    let _ = input.complete();
+    let result = prefixed_qpl::<()>(schemas, with_type_checking).parse_next(&mut input);
     let response = match result {
         Ok(_) => ValidationResult::Valid,
-        Err(ErrMode::Incomplete(_)) => ValidationResult::Invalid {
-            reason: "Partial result".to_owned(),
-        },
         Err(_) => ValidationResult::Invalid {
             reason: "Failed to parse".to_owned(),
         },
@@ -93,16 +88,86 @@ async fn validate_qpl(
     Json(response)
 }
 
-async fn parse_qpl() {}
-
-async fn batch_feed(input_ids: &[&[usize]], top_tokens: &[&[usize]]) -> Vec<BatchFeedResult> {
-    let triplets = top_tokens.iter().zip(input_ids.iter()).zip(0..).flat_map(
-        |((tokens, inputs), batch_id)| tokens.iter().map(move |t| (batch_id, inputs, *t)),
-    );
-
-    todo!()
+async fn parse_qpl(
+    Extension(state): Extension<SharedState>,
+    Json(req): Json<BatchParseRequest>,
+) -> Result<Json<Vec<BatchFeedResult>>, String> {
+    let state = state.read().await;
+    {
+        let tokenizer = state.tokenizer.lock().unwrap();
+        if tokenizer.is_none() {
+            return Err("Tokenizer not registered".into());
+        }
+    }
+    let result = batch_feed(&req.input_ids, &req.top_tokens, &state);
+    Ok(Json(result))
 }
 
-async fn feed(input_ids: &[usize], token: usize) -> FeedResult {
-    todo!()
+fn batch_feed(
+    input_ids: &[Vec<u32>],
+    top_tokens: &[Vec<u32>],
+    state: &ServerState,
+) -> Vec<BatchFeedResult> {
+    let triplets = top_tokens
+        .iter()
+        .zip(input_ids.iter())
+        .zip(0..)
+        .flat_map(|((tokens, inputs), batch_id)| tokens.iter().map(move |t| (batch_id, inputs, *t)))
+        .collect::<Vec<_>>();
+
+    let mut result = Vec::with_capacity(triplets.len());
+    triplets
+        .into_par_iter()
+        .map(|(batch_id, input_ids, top_token)| {
+            let feed_result = feed(input_ids, top_token, state);
+            BatchFeedResult {
+                batch_id,
+                top_token,
+                feed_result,
+            }
+        })
+        .collect_into_vec(&mut result);
+
+    result
+}
+
+fn feed(input_ids: &[u32], token: u32, state: &ServerState) -> FeedResult {
+    let ServerState {
+        tokenizer,
+        schemas,
+        with_type_checking,
+    } = state;
+
+    let mut tokenizer_input = Vec::from(input_ids);
+    tokenizer_input.push(token);
+
+    let decoded = detokenize(&tokenizer_input, tokenizer);
+
+    let mut parser_input = Stream {
+        input: Partial::new(decoded.strip_suffix("</s>").unwrap_or(&decoded)),
+        state: QplEnvironment {
+            state: QplState::default(),
+            schema: None,
+        },
+    };
+
+    if decoded.ends_with("</s>") {
+        let _ = parser_input.complete();
+    }
+
+    match prefixed_qpl::<()>(schemas, *with_type_checking).parse_next(&mut parser_input) {
+        Ok(_) => FeedResult::Complete,
+        Err(ErrMode::Incomplete(_)) => FeedResult::Partial,
+        Err(_) => FeedResult::Failure,
+    }
+}
+
+fn detokenize(input_ids: &[u32], tokenizer: &Arc<Mutex<Option<Tokenizer>>>) -> String {
+    tokenizer
+        .lock()
+        .unwrap()
+        .as_ref()
+        .unwrap()
+        .decode(input_ids, false)
+        .unwrap()
 }

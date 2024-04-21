@@ -6,13 +6,12 @@ use super::{
     utils::has_duplicates,
 };
 use crate::domain::{
-    Column, ColumnType, Comparable, Comparison, ExceptOperator, KeyType, Operation, Predicate,
-    Table,
+    ColumnType, Comparable, Comparison, ExceptOperator, Operation, Predicate, Table,
 };
 use std::collections::{HashMap, HashSet};
 use winnow::{
     ascii::multispace0,
-    combinator::{alt, empty, fail, opt, separated, separated_foldl1, todo},
+    combinator::{alt, empty, fail, separated, separated_foldl1},
     error::ParserError,
     Parser,
 };

@@ -18,7 +18,7 @@ pub(crate) fn choice<'i, E: ParserError<Stream<'i>>>(
 ) -> impl Parser<Stream<'i>, String, E> {
     move |input: &mut Stream<'i>| {
         for choice in choices.iter() {
-            if (opt(Caseless(&choice[..])).parse_next(input)?).is_some() {
+            if (opt(Caseless(choice.as_str())).parse_next(input)?).is_some() {
                 return Ok(choice.to_owned());
             }
         }

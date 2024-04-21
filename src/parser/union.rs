@@ -1,18 +1,12 @@
 use super::{
-    shared::{
-        boolean, get_table_from_indexed_outputs, indexed_column, input_ids, null, number,
-        predicate_wrapper, spaced_comparison_op, string, Stream,
-    },
+    shared::{get_table_from_indexed_outputs, indexed_column, input_ids, Stream},
     utils::has_duplicates,
 };
-use crate::domain::{
-    Column, ColumnType, Comparable, Comparison, ExceptOperator, KeyType, Operation, Predicate,
-    Table,
-};
+use crate::domain::{Operation, Table};
 use std::collections::{HashMap, HashSet};
 use winnow::{
     ascii::multispace0,
-    combinator::{alt, empty, fail, opt, separated, separated_foldl1, todo},
+    combinator::{fail, separated},
     error::ParserError,
     PResult, Parser,
 };
