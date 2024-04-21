@@ -16,6 +16,7 @@ use std::{
 };
 use tokenizers::Tokenizer;
 use tokio::sync::RwLock;
+use tower_http::trace::TraceLayer;
 use tracing::debug;
 use winnow::{error::ErrMode, stream::StreamIsPartial, Parser, Partial};
 
@@ -35,6 +36,7 @@ async fn main() {
         .route("/tokenizer", post(register_tokenizer))
         .route("/validate", post(validate_qpl))
         .route("/parse", post(parse_qpl))
+        .layer(TraceLayer::new_for_http())
         .layer(Extension(SharedState::default()));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8081").await.unwrap();
