@@ -5,6 +5,7 @@ use winnow::{
     ascii::{multispace0, Caseless},
     combinator::{alt, fail, opt, repeat},
     error::ParserError,
+    token::take_until,
     PResult, Parser,
 };
 
@@ -13,6 +14,8 @@ pub(crate) fn prefixed_qpl<'i, 'j, E: ParserError<Stream<'i>>>(
     with_type_checking: bool,
 ) -> impl Parser<Stream<'i>, Qpl, E> + 'j {
     move |input: &mut Stream<'i>| {
+        take_until(0.., "### Response:\n").parse_next(input)?;
+        "### Response:\n".parse_next(input)?;
         multispace0.parse_next(input)?;
         repeat(0.., special_token).parse_next(input)?;
         multispace0.parse_next(input)?;

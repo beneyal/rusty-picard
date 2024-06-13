@@ -8,10 +8,8 @@ use tokenizers::Tokenizer;
 
 #[derive(Debug, Default)]
 pub(crate) struct ServerState {
-    // pub(crate) counter: usize,
     pub(crate) tokenizer: Arc<Mutex<Option<Tokenizer>>>,
     pub(crate) schemas: HashMap<String, SqlSchema>,
-    // pub(crate) partial_parses: HashMap<Vec<u32>, PartialParse>,
     pub(crate) with_type_checking: bool,
 }
 

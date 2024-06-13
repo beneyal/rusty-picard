@@ -292,7 +292,7 @@ pub(crate) fn get_table_from_indexed_outputs<'i, E: ParserError<Stream<'i>>>(
                     typ: ColumnType::Number,
                     keys: vec![],
                 }),
-                (idx, out) => state.idx_to_table[&idx]
+                (idx, out) => state.idx_to_table[idx]
                     .columns()
                     .iter()
                     .find(|c| c.name() == out)
